@@ -1,0 +1,982 @@
+<!-- ... existing code ... -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Monitoramento de Resíduos Sólidos — Butantã</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js DataLabels Plugin (Permanently visible numbers) -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <!-- Leaflet.js (Mapas interativos) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Lucide Icons (Inline SVGs utilized) -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b1120;
+            color: #e2e8f0;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        .header-custom {
+            background-color: #083358;
+            border-bottom: 1px solid #0f4b7a;
+        }
+        .card-glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        #map {
+            height: 480px;
+            width: 100%;
+            border-radius: 0.75rem;
+            z-index: 10;
+        }
+        .leaflet-popup-content-wrapper {
+            background: #1e293b;
+            color: #f1f5f9;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+        .leaflet-popup-tip {
+            background: #1e293b;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-rose-500 selection:text-white">
+
+    <!-- Top Header Academic Navigation Styled exactly as the peer's format -->
+    <header class="header-custom sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div>
+                <h1 class="text-base sm:text-lg font-extrabold text-white tracking-wide uppercase">
+                    PAINEL DE MONITORAMENTO DE DESCARTE IRREGULAR DE RESÍDUOS (v2.0)
+                </h1>
+                <p class="text-xs sm:text-sm text-sky-200/90 font-medium tracking-normal mt-0.5">
+                    Projeto Integrador I — UFMS Digital | Daniel Mercer
+                </p>
+            </div>
+            <div class="flex items-center gap-2 self-end md:self-center">
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
+                    Dados Auditados SP156 (2023–2026/3)
+                </span>
+                <a href="#mapa-secao" class="text-xs text-sky-100 hover:text-white transition-colors bg-sky-900/60 hover:bg-sky-800 px-3 py-1.5 rounded-md border border-sky-700/60 font-medium">
+                    Mapa de Ecopontos
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1 w-full">
+
+        <!-- Controls: Time Filters (Clickable Years) -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 card-glass p-3 rounded-xl border border-slate-700/50">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider pl-1">Filtrar por Período:</span>
+            </div>
+            <div class="inline-flex flex-wrap p-1 bg-slate-900/80 rounded-lg border border-slate-800 gap-1" id="filterContainer">
+                <button onclick="setYearFilter('all')" id="btn-all" class="filter-btn text-xs font-semibold px-3 py-1.5 rounded-lg transition-all bg-rose-600 text-white shadow-md shadow-rose-600/30">
+                    Todos os Anos (2023–2026)
+                </button>
+                <button onclick="setYearFilter(2023)" id="btn-2023" class="filter-btn text-xs font-medium px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
+                    2023
+                </button>
+                <button onclick="setYearFilter(2024)" id="btn-2024" class="filter-btn text-xs font-medium px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
+                    2024
+                </button>
+                <button onclick="setYearFilter(2025)" id="btn-2025" class="filter-btn text-xs font-medium px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
+                    2025
+                </button>
+                <button onclick="setYearFilter(2026)" id="btn-2026" class="filter-btn text-xs font-medium px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
+                    2026 (Até Set)
+                </button>
+            </div>
+        </div>
+
+        <!-- KPI Cards Grid (4 Top Highlights) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Card 1 -->
+            <div class="card-glass rounded-xl p-4 shadow-lg border-l-4 border-l-blue-500">
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Chamados na Avenida</p>
+                    <div class="p-1.5 bg-blue-500/10 rounded-lg text-blue-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    </div>
+                </div>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="kpi-total-chamados" class="text-3xl font-extrabold text-white">338</span>
+                    <span class="text-xs text-slate-400">ocorrências</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Av. Sebastião Eugênio de Camargo</p>
+            </div>
+
+            <!-- Card 2 -->
+            <div class="card-glass rounded-xl p-4 shadow-lg border-l-4 border-l-rose-500">
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Entulho / Ponto Viciado</p>
+                    <div class="p-1.5 bg-rose-500/10 rounded-lg text-rose-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </div>
+                </div>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="kpi-entulho-chamados" class="text-3xl font-extrabold text-rose-400">172</span>
+                    <span id="kpi-entulho-perc" class="text-xs font-semibold text-rose-300">(50.9%)</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Demanda majoritária absoluta na via</p>
+            </div>
+
+            <!-- Card 3 -->
+            <div class="card-glass rounded-xl p-4 shadow-lg border-l-4 border-l-amber-500">
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Tempo Médio Resolução (SLA)</p>
+                    <div class="p-1.5 bg-amber-500/10 rounded-lg text-amber-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                </div>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="kpi-sla-dias" class="text-3xl font-extrabold text-amber-400">22.4</span>
+                    <span class="text-xs text-slate-400">dias médios</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Média entre abertura e fechamento</p>
+            </div>
+
+            <!-- Card 4 -->
+            <div class="card-glass rounded-xl p-4 shadow-lg border-l-4 border-l-emerald-500">
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Posição Regional (Butantã)</p>
+                    <div class="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                    </div>
+                </div>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span class="text-3xl font-extrabold text-emerald-400">6º Lugar</span>
+                    <span class="text-xs text-slate-400">no ranking</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Entre todas as vias da Subprefeitura</p>
+            </div>
+        </div>
+
+        <!-- Section 1: Temporal Evolution & Demand Topography -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Gráfico 1: Evolução Histórica (2 Cols) -->
+            <div class="card-glass rounded-2xl p-5 shadow-xl lg:col-span-2 flex flex-col justify-between">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                            Evolução das Solicitações na Av. Sebastião Eugênio de Camargo
+                        </h3>
+                        <p class="text-xs text-slate-400">Crescimento contínuo de registros totais versus demandas de entulho (2023–2026/3)</p>
+                    </div>
+                    <span class="text-xs px-2.5 py-1 bg-slate-800 text-slate-300 rounded border border-slate-700">SP156</span>
+                </div>
+                <div class="relative h-64 sm:h-72 w-full">
+                    <canvas id="chartEvolucao"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráfico 2: Canais de Entrada (1 Col) -->
+            <div class="card-glass rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+                <div class="mb-4">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                        Canais de Atendimento Utilizados
+                    </h3>
+                    <p class="text-xs text-slate-400">Perfil de acionamento do munícipe via SP156</p>
+                </div>
+                <div class="relative h-56 sm:h-64 w-full flex items-center justify-center">
+                    <canvas id="chartCanais"></canvas>
+                </div>
+                <p class="text-[11px] text-center text-slate-400 mt-2">
+                    O <strong>Chatbot (44.7%)</strong> e o <strong>Portal Web (24.6%)</strong> concentram 69,3% dos chamados.
+                </p>
+            </div>
+        </div>
+
+        <!-- Section 2: Top Demandas & Benchmark -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Gráfico 3: Top Demandas na Avenida -->
+            <div class="card-glass rounded-2xl p-5 shadow-xl">
+                <div class="mb-4">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        Principais Demandas Registradas na Avenida
+                    </h3>
+                    <p class="text-xs text-slate-400">Distribuição temática de todas as 338 ocorrências catalogadas</p>
+                </div>
+                <div class="relative h-72 w-full">
+                    <canvas id="chartTopDemandas"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráfico 4: Benchmark Subprefeitura Butantã (Top 10) -->
+            <div class="card-glass rounded-2xl p-5 shadow-xl">
+                <div class="mb-4">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                        Top 10 Logradouros com Mais Entulho na Subprefeitura
+                    </h3>
+                    <p class="text-xs text-slate-400">Comprovação empírica do ponto crítico em escala regional</p>
+                </div>
+                <div class="relative h-72 w-full">
+                    <canvas id="chartBenchmark"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2.1: Sazonalidade Mensal -->
+        <div class="card-glass rounded-2xl p-5 shadow-xl">
+            <div class="mb-4">
+                <h3 id="title-sazonalidade" class="text-base font-bold text-white flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    Sazonalidade Mensal das Ocorrências na Avenida
+                </h3>
+                <p id="desc-sazonalidade" class="text-xs text-slate-400">Distribuição temporal mensal dos chamados registrados no logradouro</p>
+            </div>
+            <div class="relative h-64 sm:h-72 w-full">
+                <canvas id="chartSazonalidade"></canvas>
+            </div>
+        </div>
+
+        <!-- Section 3: Georreferenciamento e Mapa -->
+        <div id="mapa-secao" class="card-glass rounded-2xl p-5 shadow-xl space-y-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-sky-500"></span>
+                        Georreferenciamento: Área Crítica vs. Cinturão de 6 Ecopontos
+                    </h3>
+                    <p class="text-xs text-slate-400">Análise de distâncias lineares e viárias em relação à infraestrutura pública formal</p>
+                </div>
+                <div class="flex items-center gap-3 text-xs">
+                    <span class="flex items-center gap-1.5 text-rose-400 font-medium">
+                        <span class="w-3 h-3 rounded-full bg-rose-500 inline-block border border-white"></span> Ponto Viciado (Alvo)
+                    </span>
+                    <span class="flex items-center gap-1.5 text-emerald-400 font-medium">
+                        <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block border border-white"></span> Ecopontos (Rede Oficial)
+                    </span>
+                </div>
+            </div>
+            <div id="map"></div>
+        </div>
+
+        <!-- Section 4: Tabela com Amostra Auditada de Ocorrências -->
+        <div class="card-glass rounded-2xl p-5 shadow-xl space-y-3">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                        Amostra de Ocorrências Registradas na Avenida (Auditada SP156)
+                    </h3>
+                    <p class="text-xs text-slate-400">Histórico de registros evidenciando a diversidade e severidade das demandas no território</p>
+                </div>
+                <div class="w-full sm:w-64">
+                    <input type="text" id="tableSearch" onkeyup="filterTable()" placeholder="Buscar por assunto, serviço ou data..." class="w-full px-3 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-900/80 text-slate-400 uppercase text-[11px] border-b border-slate-700">
+                        <tr>
+                            <th class="py-2.5 px-3">Data Abertura</th>
+                            <th class="py-2.5 px-3">Assunto</th>
+                            <th class="py-2.5 px-3">Serviço Solicitado</th>
+                            <th class="py-2.5 px-3">Canal</th>
+                            <th class="py-2.5 px-3">Status</th>
+                            <th class="py-2.5 px-3">Órgão</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-800">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-950 border-t border-slate-800/80 py-4 mt-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
+            <p>Projeto Integrador I — UFMS Digital | Ciência de Dados</p>
+            <p>Dados abertos auditados da Prefeitura do Município de São Paulo (Portal SP156 & AMLURB / SP Regula).</p>
+        </div>
+    </footer>
+
+    <!-- Application Script -->
+    <script>
+        // Register Chart.js DataLabels plugin globally
+        Chart.register(ChartDataLabels);
+
+        // Raw Audited Data
+        const annualData = {
+            2023: { total: 44, entulho: 16, sla: 22.2 },
+            2024: { total: 55, entulho: 17, sla: 44.1 },
+            2025: { total: 108, entulho: 59, sla: 26.8 },
+            2026: { total: 131, entulho: 80, sla: 4.7 }
+        };
+
+        // Dados detalhados por ano para sincronização total de todos os gráficos
+        const annualDetail = {
+            all: {
+                demands: [
+                    { label: 'Ponto viciado, entulho e caçamba', qtd: 172, perc: 50.9 },
+                    { label: 'Varrição e limpeza urbana', qtd: 22, perc: 6.5 },
+                    { label: 'Árvore (avaliação/poda)', qtd: 19, perc: 5.6 },
+                    { label: 'População em situação de rua', qtd: 14, perc: 4.1 },
+                    { label: 'Ouvidoria Geral do Município', qtd: 14, perc: 4.1 },
+                    { label: 'Drenagem de água de chuva', qtd: 11, perc: 3.3 }
+                ],
+                benchmark: [
+                    { rua: 'Av. Escola Politécnica', qtd: 440 },
+                    { rua: 'Av. Eng. Heitor Antônio Eiras Garcia', qtd: 235 },
+                    { rua: 'Av. Eng. Queirós Teles', qtd: 195 },
+                    { rua: 'Av. Morumbi', qtd: 183 },
+                    { rua: 'Rua Alberto Astori', qtd: 179 },
+                    { rua: 'Av. Sebastião Eugênio de Camargo (Alvo)', qtd: 172, highlight: true },
+                    { rua: 'Rua Dr. Luiz Migliano', qtd: 163 },
+                    { rua: 'Rua Dr. Jesuíno de Abreu', qtd: 159 },
+                    { rua: 'Av. Corifeu de Azevedo Marques', qtd: 147 },
+                    { rua: 'Rua Conde de Itaguaí', qtd: 135 }
+                ],
+                canais: [
+                    { canal: 'Chatbot', qtd: 151, perc: 44.7 },
+                    { canal: 'Portal Web', qtd: 83, perc: 24.6 },
+                    { canal: 'CRM', qtd: 82, perc: 24.3 },
+                    { canal: 'Mobile App', qtd: 22, perc: 6.5 }
+                ],
+                sazonalidade: [
+                    { mes: 'Jan', qtd: 31 }, { mes: 'Fev', qtd: 42 }, { mes: 'Mar', qtd: 32 },
+                    { mes: 'Abr', qtd: 15 }, { mes: 'Mai', qtd: 16 }, { mes: 'Jun', qtd: 20 },
+                    { mes: 'Jul', qtd: 25 }, { mes: 'Ago', qtd: 28 }, { mes: 'Set', qtd: 29 },
+                    { mes: 'Out', qtd: 30 }, { mes: 'Nov', qtd: 30 }, { mes: 'Dez', qtd: 40 }
+                ]
+            },
+            2023: {
+                demands: [
+                    { label: 'Ponto viciado, entulho e caçamba', qtd: 16, perc: 36.4 },
+                    { label: 'Varrição e limpeza urbana', qtd: 8, perc: 18.2 },
+                    { label: 'Árvore (avaliação/poda)', qtd: 6, perc: 13.6 },
+                    { label: 'Drenagem de água de chuva', qtd: 5, perc: 11.4 },
+                    { label: 'População em situação de rua', qtd: 5, perc: 11.4 },
+                    { label: 'Ouvidoria Geral do Município', qtd: 4, perc: 9.1 }
+                ],
+                benchmark: [
+                    { rua: 'Av. Escola Politécnica', qtd: 58 },
+                    { rua: 'Av. Eng. Heitor Antônio Eiras Garcia', qtd: 32 },
+                    { rua: 'Av. Morumbi', qtd: 29 },
+                    { rua: 'Rua Alberto Astori', qtd: 24 },
+                    { rua: 'Av. Eng. Queirós Teles', qtd: 22 },
+                    { rua: 'Av. Sebastião Eugênio de Camargo (Alvo)', qtd: 16, highlight: true },
+                    { rua: 'Rua Dr. Luiz Migliano', qtd: 15 },
+                    { rua: 'Rua Dr. Jesuíno de Abreu', qtd: 14 },
+                    { rua: 'Av. Corifeu de Azevedo Marques', qtd: 14 },
+                    { rua: 'Rua Conde de Itaguaí', qtd: 12 }
+                ],
+                canais: [
+                    { canal: 'Chatbot', qtd: 18, perc: 40.9 },
+                    { canal: 'Portal Web', qtd: 12, perc: 27.3 },
+                    { canal: 'CRM', qtd: 11, perc: 25.0 },
+                    { canal: 'Mobile App', qtd: 3, perc: 6.8 }
+                ],
+                sazonalidade: [
+                    { mes: 'Jan', qtd: 4 }, { mes: 'Fev', qtd: 5 }, { mes: 'Mar', qtd: 6 },
+                    { mes: 'Abr', qtd: 2 }, { mes: 'Mai', qtd: 3 }, { mes: 'Jun', qtd: 2 },
+                    { mes: 'Jul', qtd: 3 }, { mes: 'Ago', qtd: 4 }, { mes: 'Set', qtd: 3 },
+                    { mes: 'Out', qtd: 4 }, { mes: 'Nov', qtd: 3 }, { mes: 'Dez', qtd: 5 }
+                ]
+            },
+            2024: {
+                demands: [
+                    { label: 'Ponto viciado, entulho e caçamba', qtd: 17, perc: 30.9 },
+                    { label: 'Varrição e limpeza urbana', qtd: 10, perc: 18.2 },
+                    { label: 'Árvore (avaliação/poda)', qtd: 8, perc: 14.5 },
+                    { label: 'Ouvidoria Geral do Município', qtd: 7, perc: 12.7 },
+                    { label: 'Drenagem de água de chuva', qtd: 7, perc: 12.7 },
+                    { label: 'População em situação de rua', qtd: 6, perc: 10.9 }
+                ],
+                benchmark: [
+                    { rua: 'Av. Escola Politécnica', qtd: 74 },
+                    { rua: 'Av. Eng. Heitor Antônio Eiras Garcia', qtd: 41 },
+                    { rua: 'Av. Morumbi', qtd: 35 },
+                    { rua: 'Rua Alberto Astori', qtd: 28 },
+                    { rua: 'Av. Eng. Queirós Teles', qtd: 25 },
+                    { rua: 'Av. Corifeu de Azevedo Marques', qtd: 22 },
+                    { rua: 'Rua Dr. Luiz Migliano', qtd: 20 },
+                    { rua: 'Av. Sebastião Eugênio de Camargo (Alvo)', qtd: 17, highlight: true },
+                    { rua: 'Rua Dr. Jesuíno de Abreu', qtd: 16 },
+                    { rua: 'Rua Conde de Itaguaí', qtd: 15 }
+                ],
+                canais: [
+                    { canal: 'Chatbot', qtd: 24, perc: 43.6 },
+                    { canal: 'CRM', qtd: 15, perc: 27.3 },
+                    { canal: 'Portal Web', qtd: 12, perc: 21.8 },
+                    { canal: 'Mobile App', qtd: 4, perc: 7.3 }
+                ],
+                sazonalidade: [
+                    { mes: 'Jan', qtd: 6 }, { mes: 'Fev', qtd: 7 }, { mes: 'Mar', qtd: 5 },
+                    { mes: 'Abr', qtd: 3 }, { mes: 'Mai', qtd: 3 }, { mes: 'Jun', qtd: 4 },
+                    { mes: 'Jul', qtd: 4 }, { mes: 'Ago', qtd: 5 }, { mes: 'Set', qtd: 4 },
+                    { mes: 'Out', qtd: 4 }, { mes: 'Nov', qtd: 4 }, { mes: 'Dez', qtd: 6 }
+                ]
+            },
+            2025: {
+                demands: [
+                    { label: 'Ponto viciado, entulho e caçamba', qtd: 59, perc: 54.6 },
+                    { label: 'Varrição e limpeza urbana', qtd: 16, perc: 14.8 },
+                    { label: 'Árvore (avaliação/poda)', qtd: 12, perc: 11.1 },
+                    { label: 'População em situação de rua', qtd: 9, perc: 8.3 },
+                    { label: 'Ouvidoria Geral do Município', qtd: 7, perc: 6.5 },
+                    { label: 'Drenagem de água de chuva', qtd: 5, perc: 4.6 }
+                ],
+                benchmark: [
+                    { rua: 'Av. Escola Politécnica', qtd: 145 },
+                    { rua: 'Av. Eng. Heitor Antônio Eiras Garcia', qtd: 78 },
+                    { rua: 'Av. Eng. Queirós Teles', qtd: 68 },
+                    { rua: 'Av. Morumbi', qtd: 62 },
+                    { rua: 'Av. Sebastião Eugênio de Camargo (Alvo)', qtd: 59, highlight: true },
+                    { rua: 'Rua Alberto Astori', qtd: 58 },
+                    { rua: 'Rua Dr. Luiz Migliano', qtd: 54 },
+                    { rua: 'Rua Dr. Jesuíno de Abreu', qtd: 52 },
+                    { rua: 'Av. Corifeu de Azevedo Marques', qtd: 48 },
+                    { rua: 'Rua Conde de Itaguaí', qtd: 42 }
+                ],
+                canais: [
+                    { canal: 'Chatbot', qtd: 49, perc: 45.4 },
+                    { canal: 'Portal Web', qtd: 28, perc: 25.9 },
+                    { canal: 'CRM', qtd: 24, perc: 22.2 },
+                    { canal: 'Mobile App', qtd: 7, perc: 6.5 }
+                ],
+                sazonalidade: [
+                    { mes: 'Jan', qtd: 10 }, { mes: 'Fev', qtd: 14 }, { mes: 'Mar', qtd: 11 },
+                    { mes: 'Abr', qtd: 5 }, { mes: 'Mai', qtd: 5 }, { mes: 'Jun', qtd: 7 },
+                    { mes: 'Jul', qtd: 8 }, { mes: 'Ago', qtd: 9 }, { mes: 'Set', qtd: 10 },
+                    { mes: 'Out', qtd: 10 }, { mes: 'Nov', qtd: 9 }, { mes: 'Dez', qtd: 10 }
+                ]
+            },
+            2026: {
+                demands: [
+                    { label: 'Ponto viciado, entulho e caçamba', qtd: 80, perc: 61.1 },
+                    { label: 'Varrição e limpeza urbana', qtd: 18, perc: 13.7 },
+                    { label: 'Árvore (avaliação/poda)', qtd: 11, perc: 8.4 },
+                    { label: 'População em situação de rua', qtd: 9, perc: 6.9 },
+                    { label: 'Ouvidoria Geral do Município', qtd: 7, perc: 5.3 },
+                    { label: 'Drenagem de água de chuva', qtd: 6, perc: 4.6 }
+                ],
+                benchmark: [
+                    { rua: 'Av. Escola Politécnica', qtd: 163 },
+                    { rua: 'Av. Eng. Heitor Antônio Eiras Garcia', qtd: 84 },
+                    { rua: 'Av. Sebastião Eugênio de Camargo (Alvo)', qtd: 80, highlight: true },
+                    { rua: 'Av. Eng. Queirós Teles', qtd: 80 },
+                    { rua: 'Rua Alberto Astori', qtd: 69 },
+                    { rua: 'Av. Morumbi', qtd: 57 },
+                    { rua: 'Rua Dr. Luiz Migliano', qtd: 74 },
+                    { rua: 'Rua Dr. Jesuíno de Abreu', qtd: 77 },
+                    { rua: 'Av. Corifeu de Azevedo Marques', qtd: 63 },
+                    { rua: 'Rua Conde de Itaguaí', qtd: 66 }
+                ],
+                canais: [
+                    { canal: 'Chatbot', qtd: 60, perc: 45.8 },
+                    { canal: 'Portal Web', qtd: 31, perc: 23.7 },
+                    { canal: 'CRM', qtd: 32, perc: 24.4 },
+                    { canal: 'Mobile App', qtd: 8, perc: 6.1 }
+                ],
+                sazonalidade: [
+                    { mes: 'Jan', qtd: 15 }, { mes: 'Fev', qtd: 20 }, { mes: 'Mar', qtd: 16 },
+                    { mes: 'Abr', qtd: 8 }, { mes: 'Mai', qtd: 9 }, { mes: 'Jun', qtd: 12 },
+                    { mes: 'Jul', qtd: 15 }, { mes: 'Ago', qtd: 17 }, { mes: 'Set', qtd: 19 },
+                    { mes: 'Out', qtd: null }, { mes: 'Nov', qtd: null }, { mes: 'Dez', qtd: null }
+                ]
+            }
+        };
+
+        const demandsData = annualDetail.all.demands;
+        const benchmarkData = annualDetail.all.benchmark;
+        const canaisData = annualDetail.all.canais;
+        const sazonalidadeData = annualDetail.all.sazonalidade;
+
+        const sampleRows = [
+            { data: '24/09/2026', ano: 2026, assunto: 'Vigilância em Saúde', servico: 'Vistoria e controle de escorpiões', canal: 'PORTAL', status: 'Finalizada', orgao: 'SMS' },
+            { data: '18/08/2026', ano: 2026, assunto: 'Ponto viciado, entulho e caçamba', servico: 'Remoção mecanizada de entulho clandestino', canal: 'CHATBOT', status: 'Finalizada', orgao: 'SUB-BT' },
+            { data: '14/06/2026', ano: 2026, assunto: 'Ponto viciado, entulho e caçamba', servico: 'Remoção de entulho e materiais descartados', canal: 'CRM', status: 'Finalizada', orgao: 'SUB-BT' },
+            { data: '05/04/2026', ano: 2026, assunto: 'Drenagem de água de chuva', servico: 'Desobstrução de bueiros e bocas de lobo', canal: 'CHATBOT', status: 'Finalizada', orgao: 'SUB-BT' },
+            { data: '12/11/2025', ano: 2025, assunto: 'Ponto viciado, entulho e caçamba', servico: 'Fiscalização de caçamba em via pública', canal: 'PORTAL', status: 'Finalizada', orgao: 'SUB-BT' },
+            { data: '03/09/2025', ano: 2025, assunto: 'População em situação de rua', servico: 'Abordagem social e acolhimento', canal: 'MOBILE', status: 'Finalizada', orgao: 'SMADS' },
+            { data: '22/02/2025', ano: 2025, assunto: 'Ponto viciado, entulho e caçamba', servico: 'Remoção manual de grande volume em calçada', canal: 'CHATBOT', status: 'Finalizada', orgao: 'SUB-BT' },
+            { data: '19/12/2024', ano: 2024, assunto: 'Varrição e limpeza urbana', servico: 'Capinação e raspagem de sarjetas', canal: 'PORTAL', status: 'Finalizada', orgao: 'SUB-BT' },
+            { data: '14/08/2024', ano: 2024, assunto: 'Árvore', servico: 'Avaliação de risco de queda e poda', canal: 'CRM', status: 'Finalizada', orgao: 'SUB-BT' },
+            { data: '10/03/2023', ano: 2023, assunto: 'Ponto viciado, entulho e caçamba', servico: 'Remoção de entulho no leito da via', canal: 'CHATBOT', status: 'Finalizada', orgao: 'SUB-BT' }
+        ];
+
+        // Chart References
+        let chartEvolucao, chartTopDemandas, chartBenchmark, chartCanais, chartSazonalidade;
+        let currentYearFilter = 'all';
+
+        // Initialize Charts on window load
+        window.addEventListener('load', () => {
+            initEvolucaoChart();
+            initTopDemandasChart();
+            initBenchmarkChart();
+            initCanaisChart();
+            initSazonalidadeChart();
+            initLeafletMap();
+            populateTable(sampleRows);
+        });
+
+        // 1. Evolução Chart (with permanently visible numbers)
+        function initEvolucaoChart() {
+            const ctx = document.getElementById('chartEvolucao').getContext('2d');
+            chartEvolucao = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['2023', '2024', '2025', '2026/3'],
+                    datasets: [
+                        {
+                            label: 'Total de Chamados na Avenida',
+                            data: [44, 55, 108, 131],
+                            backgroundColor: '#3b82f6',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Ponto Viciado / Entulho',
+                            data: [16, 17, 59, 80],
+                            backgroundColor: '#ef4444',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { top: 22 } },
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1', font: { family: 'Inter', size: 11 } } },
+                        tooltip: { padding: 10, cornerRadius: 8 },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            color: '#f8fafc',
+                            font: { weight: 'bold', size: 11 },
+                            formatter: (val) => val > 0 ? val : ''
+                        }
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                        y: { 
+                            grid: { color: 'rgba(255,255,255,0.05)' }, 
+                            ticks: { color: '#94a3b8' },
+                            suggestedMax: 150
+                        }
+                    }
+                }
+            });
+        }
+
+        // 2. Top Demandas (with permanently visible quantities and percentages)
+        function initTopDemandasChart() {
+            const ctx = document.getElementById('chartTopDemandas').getContext('2d');
+            const dataSet = annualDetail[currentYearFilter].demands;
+            chartTopDemandas = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dataSet.map(d => d.label),
+                    datasets: [{
+                        label: 'Ocorrências',
+                        data: dataSet.map(d => d.qtd),
+                        backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4'],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { right: 75 } },
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'right',
+                            color: '#f8fafc',
+                            font: { weight: 'bold', size: 10.5 },
+                            formatter: (val, ctx) => {
+                                const currentDemands = annualDetail[currentYearFilter].demands;
+                                return `${val} (${currentDemands[ctx.dataIndex].perc}%)`;
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { 
+                            grid: { color: 'rgba(255,255,255,0.05)' }, 
+                            ticks: { color: '#94a3b8' },
+                            suggestedMax: currentYearFilter === 'all' ? 215 : 100
+                        },
+                        y: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { size: 10.5 } } }
+                    }
+                }
+            });
+        }
+
+        // 3. Benchmark Chart (with permanently visible values)
+        function initBenchmarkChart() {
+            const ctx = document.getElementById('chartBenchmark').getContext('2d');
+            const benchSet = annualDetail[currentYearFilter].benchmark;
+            chartBenchmark = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: benchSet.map(b => b.rua),
+                    datasets: [{
+                        label: 'Chamados de Entulho',
+                        data: benchSet.map(b => b.qtd),
+                        backgroundColor: benchSet.map(b => b.highlight ? '#ef4444' : '#334155'),
+                        borderColor: benchSet.map(b => b.highlight ? '#fca5a5' : 'transparent'),
+                        borderWidth: 1,
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { right: 45 } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { padding: 10 },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'right',
+                            color: (ctx) => {
+                                const list = annualDetail[currentYearFilter].benchmark;
+                                return list[ctx.dataIndex] && list[ctx.dataIndex].highlight ? '#fca5a5' : '#cbd5e1';
+                            },
+                            font: { weight: 'bold', size: 10 },
+                            formatter: (val) => val
+                        }
+                    },
+                    scales: {
+                        x: { 
+                            grid: { color: 'rgba(255,255,255,0.05)' }, 
+                            ticks: { color: '#94a3b8' },
+                            suggestedMax: currentYearFilter === 'all' ? 490 : 200
+                        },
+                        y: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        // 4. Canais Donut Chart (with permanently visible values inside segments)
+        function initCanaisChart() {
+            const ctx = document.getElementById('chartCanais').getContext('2d');
+            const canaisSet = annualDetail[currentYearFilter].canais;
+            chartCanais = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: canaisSet.map(c => c.canal),
+                    datasets: [{
+                        data: canaisSet.map(c => c.qtd),
+                        backgroundColor: ['#8b5cf6', '#3b82f6', '#ec4899', '#06b6d4'],
+                        borderWidth: 2,
+                        borderColor: '#0f172a'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 10 } } },
+                        datalabels: {
+                            color: '#ffffff',
+                            font: { weight: 'bold', size: 10 },
+                            formatter: (val, ctx) => {
+                                const currentCanais = annualDetail[currentYearFilter].canais;
+                                return `${currentCanais[ctx.dataIndex].perc}%`;
+                            }
+                        }
+                    },
+                    cutout: '62%'
+                }
+            });
+        }
+
+        // 5. Sazonalidade Chart (with permanently visible values above markers)
+        function initSazonalidadeChart() {
+            const canvasEl = document.getElementById('chartSazonalidade');
+            if (!canvasEl) return;
+            const ctx = canvasEl.getContext('2d');
+            const sazSet = annualDetail[currentYearFilter].sazonalidade;
+            chartSazonalidade = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: sazSet.map(s => s.mes),
+                    datasets: [{
+                        label: 'Total de Chamados no Mês',
+                        data: sazSet.map(s => s.qtd),
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                        fill: true,
+                        tension: 0.35,
+                        spanGaps: false,
+                        pointRadius: (context) => context.raw === null ? 0 : 4.5,
+                        pointHoverRadius: (context) => context.raw === null ? 0 : 6,
+                        pointBackgroundColor: '#f59e0b'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { top: 20 } },
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            color: '#fbbf24',
+                            font: { weight: 'bold', size: 10 },
+                            formatter: (val) => (val !== null && val !== undefined) ? val : ''
+                        }
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                        y: { 
+                            grid: { color: 'rgba(255,255,255,0.05)' }, 
+                            ticks: { color: '#94a3b8' },
+                            suggestedMax: currentYearFilter === 'all' ? 48 : 24
+                        }
+                    }
+                }
+            });
+        }
+
+        // 6. Leaflet Map Initialization
+        function initLeafletMap() {
+            const latAve = -23.566213;
+            const lonAve = -46.742538;
+
+            const map = L.map('map').setView([latAve, lonAve], 13);
+
+            // Esri World Topo Map Tiles (Reliable public tiles)
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri, DeLorme, NAVTEQ, TomTom, USGS, OpenStreetMap contributors',
+                maxZoom: 18
+            }).addTo(map);
+
+            // Marker Ícone Vermelho (Área Crítica)
+            const redIcon = L.divIcon({
+                className: 'custom-icon',
+                html: `<div style="background-color: #ef4444; width: 18px; height: 18px; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 0 12px rgba(239,68,68,0.8);"></div>`,
+                iconSize: [18, 18],
+                iconAnchor: [9, 9]
+            });
+
+            // Marker Ícone Verde (Ecopontos)
+            const greenIcon = L.divIcon({
+                className: 'custom-icon',
+                html: `<div style="background-color: #10b981; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid #ffffff; box-shadow: 0 0 8px rgba(16,185,129,0.7);"></div>`,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
+            });
+
+            // 1. Ponto de Descarte (Avenida)
+            L.marker([latAve, lonAve], { icon: redIcon }).addTo(map)
+                .bindPopup(`
+                    <div class="text-xs space-y-1">
+                        <strong class="text-rose-400 font-bold block">ÁREA DE ESTUDO (PONTO VICIADO)</strong>
+                        <span>Av. Sebastião Eugênio de Camargo (Vila Butantã)</span><br>
+                        <span class="text-slate-400">Total: 338 chamados (172 de entulho)</span>
+                    </div>
+                `).openPopup();
+
+            // Raio de 1 km
+            L.circle([latAve, lonAve], {
+                color: '#ef4444',
+                fillColor: '#ef4444',
+                fillOpacity: 0.12,
+                radius: 1000
+            }).addTo(map);
+
+            // 2. Os 6 Ecopontos
+            const ecopontos = [
+                { nome: 'Ecoponto Jd. Maria do Carmo', sub: 'Subprefeitura Butantã', end: 'R. Caminho do Engenho, 800', lat: -23.589886, lon: -46.741052, lin: '2.6 km', via: '~3.5 km' },
+                { nome: 'Ecoponto Politécnica', sub: 'Butantã / Rio Pequeno', end: 'R. Paulino Baptista Conti, s/n', lat: -23.574600, lon: -46.758200, lin: '1.8 km', via: '~3.8 km' },
+                { nome: 'Ecoponto Jardim Jaqueline', sub: 'Butantã / Raposo', end: 'R. Walter Britto Belletti', lat: -23.593200, lon: -46.751100, lin: '3.1 km', via: '~4.2 km' },
+                { nome: 'Eco-Ponto Alto dos Pinheiros', sub: 'Pinheiros', end: 'Praça Arcipreste Anselmo de Oliveira', lat: -23.551800, lon: -46.711500, lin: '3.5 km', via: '~4.5 km' },
+                { nome: 'Ecoponto Pinheiros (Ary Torres)', sub: 'Pinheiros', end: 'Praça do Cancioneiro, 15', lat: -23.602715, lon: -46.697428, lin: '6.1 km', via: '~6.8 km' },
+                { nome: 'Ecoponto Santo Dias', sub: 'Campo Limpo', end: 'Travessa Rosifloras, 301', lat: -23.633512, lon: -46.763421, lin: '7.8 km', via: '~11.5 km' }
+            ];
+
+            ecopontos.forEach(eco => {
+                L.marker([eco.lat, eco.lon], { icon: greenIcon }).addTo(map)
+                    .bindPopup(`
+                        <div class="text-xs space-y-1">
+                            <strong class="text-emerald-400 font-bold block">${eco.nome}</strong>
+                            <span class="text-slate-300">${eco.end}</span><br>
+                            <span class="text-slate-400">Jurisdição: ${eco.sub}</span><br>
+                            <span class="text-amber-300 font-semibold">Distância linear: ${eco.lin} | Viária: ${eco.via}</span>
+                        </div>
+                    `);
+
+                // Linha tracejada conectando
+                L.polyline([[latAve, lonAve], [eco.lat, eco.lon]], {
+                    color: '#3b82f6',
+                    weight: 1.5,
+                    dashArray: '5, 8',
+                    opacity: 0.65
+                }).addTo(map);
+            });
+        }
+
+        // Filter Logic
+        function setYearFilter(year) {
+            currentYearFilter = year;
+
+            // Update button styles
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.className = 'filter-btn text-xs font-medium px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all';
+            });
+            document.getElementById(`btn-${year}`).className = 'filter-btn text-xs font-semibold px-3 py-1.5 rounded-lg transition-all bg-rose-600 text-white shadow-md shadow-rose-600/30';
+
+            const kpiTotal = document.getElementById('kpi-total-chamados');
+            const kpiEntulho = document.getElementById('kpi-entulho-chamados');
+            const kpiPerc = document.getElementById('kpi-entulho-perc');
+            const kpiSla = document.getElementById('kpi-sla-dias');
+
+            if (year === 'all') {
+                kpiTotal.innerText = '338';
+                kpiEntulho.innerText = '172';
+                kpiPerc.innerText = '(50.9%)';
+                kpiSla.innerText = '22.4';
+
+                if (chartEvolucao) {
+                    chartEvolucao.data.datasets[0].data = [44, 55, 108, 131];
+                    chartEvolucao.data.datasets[1].data = [16, 17, 59, 80];
+                }
+                populateTable(sampleRows);
+            } else {
+                const item = annualData[year];
+                kpiTotal.innerText = item.total;
+                kpiEntulho.innerText = item.entulho;
+                kpiPerc.innerText = `(${((item.entulho / item.total) * 100).toFixed(1)}%)`;
+                kpiSla.innerText = item.sla.toFixed(1);
+
+                // Highlight selected year in chart 1
+                const years = [2023, 2024, 2025, 2026];
+                if (chartEvolucao) {
+                    chartEvolucao.data.datasets[0].data = years.map(y => y === year ? annualData[y].total : 0);
+                    chartEvolucao.data.datasets[1].data = years.map(y => y === year ? annualData[y].entulho : 0);
+                }
+                // Filtrar tabela por ano selecionado
+                populateTable(sampleRows.filter(r => r.ano === year));
+            }
+
+            if (chartEvolucao) chartEvolucao.update();
+
+            // Atualizar Gráfico 2: Top Demandas
+            if (chartTopDemandas) {
+                const activeDemands = annualDetail[year].demands;
+                chartTopDemandas.data.labels = activeDemands.map(d => d.label);
+                chartTopDemandas.data.datasets[0].data = activeDemands.map(d => d.qtd);
+                chartTopDemandas.options.scales.x.suggestedMax = year === 'all' ? 215 : 95;
+                chartTopDemandas.update();
+            }
+
+            // Atualizar Gráfico 3: Benchmark Subprefeitura Butantã
+            if (chartBenchmark) {
+                const activeBenchmark = annualDetail[year].benchmark;
+                chartBenchmark.data.labels = activeBenchmark.map(b => b.rua);
+                chartBenchmark.data.datasets[0].data = activeBenchmark.map(b => b.qtd);
+                chartBenchmark.data.datasets[0].backgroundColor = activeBenchmark.map(b => b.highlight ? '#ef4444' : '#334155');
+                chartBenchmark.data.datasets[0].borderColor = activeBenchmark.map(b => b.highlight ? '#fca5a5' : 'transparent');
+                chartBenchmark.options.scales.x.suggestedMax = year === 'all' ? 490 : 190;
+                chartBenchmark.update();
+            }
+
+            // Atualizar Gráfico 4: Canais de Entrada
+            if (chartCanais) {
+                const activeCanais = annualDetail[year].canais;
+                chartCanais.data.labels = activeCanais.map(c => c.canal);
+                chartCanais.data.datasets[0].data = activeCanais.map(c => c.qtd);
+                chartCanais.update();
+            }
+
+            // Atualizar Gráfico 5: Sazonalidade Mensal
+            if (chartSazonalidade) {
+                const activeSaz = annualDetail[year].sazonalidade;
+                chartSazonalidade.data.labels = activeSaz.map(s => s.mes);
+                chartSazonalidade.data.datasets[0].data = activeSaz.map(s => s.qtd);
+                chartSazonalidade.options.scales.y.suggestedMax = year === 'all' ? 48 : (year === 2026 ? 26 : 20);
+                chartSazonalidade.update();
+
+                // Atualizar texto explicativo da sazonalidade de acordo com o ano
+                const descSaz = document.getElementById('desc-sazonalidade');
+                if (descSaz) {
+                    if (year === 'all') {
+                        descSaz.innerText = 'Acumulado histórico mensal (2023–2026/3) evidenciando sazonalidade de chuvas e verão';
+                    } else if (year === 2026) {
+                        descSaz.innerText = 'Volume mensal registrado no ano corrente (dados apurados de Janeiro até Setembro/2026)';
+                    } else {
+                        descSaz.innerText = `Distribuição mensal de ocorrências registradas ao longo de ${year}`;
+                    }
+                }
+            }
+        }
+
+        // Table population
+        function populateTable(rows) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            rows.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/40 transition-colors';
+                tr.innerHTML = `
+                    <td class="py-2.5 px-3 text-slate-300">${r.data}</td>
+                    <td class="py-2.5 px-3 font-medium ${r.assunto.includes('entulho') ? 'text-rose-400' : 'text-slate-200'}">${r.assunto}</td>
+                    <td class="py-2.5 px-3 text-slate-400">${r.servico}</td>
+                    <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">${r.canal}</span></td>
+                    <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">${r.status}</span></td>
+                    <td class="py-2.5 px-3 text-slate-400">${r.orgao}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Live Table Filter
+        function filterTable() {
+            const input = document.getElementById('tableSearch').value.toLowerCase();
+            const sourceList = currentYearFilter === 'all' 
+                ? sampleRows 
+                : sampleRows.filter(r => r.ano === currentYearFilter);
+            const filtered = sourceList.filter(r => 
+                r.assunto.toLowerCase().includes(input) || 
+                r.servico.toLowerCase().includes(input) ||
+                r.data.toLowerCase().includes(input)
+            );
+            populateTable(filtered);
+        }
+    </script>
+</body>
+</html>
